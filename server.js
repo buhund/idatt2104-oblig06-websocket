@@ -1,7 +1,11 @@
 const net = require('net');
 const crypto = require('crypto');
 
-// HTTP Server to serve the test HTML page
+/**
+ * HTTP Server to serve the test HTML page
+ * Wrapping the http/html page inside a string.
+  */
+
 const httpServer = net.createServer(connection => {
   connection.on('data', () => {
     let content = `
@@ -36,8 +40,8 @@ const httpServer = net.createServer(connection => {
   document.getElementById('sendMessage').onclick = () => {
     const input = document.getElementById('messageInput');
     const message = input.value; // Get the message from the input field
-    ws.send(JSON.stringify({ type: 'broadcast', data: message })); // Send it as a structured message
-    input.value = ''; // Clear the input field after sending
+    ws.send(JSON.stringify({ type: 'broadcast', data: message })); // Send the message as a structured message
+    input.value = ''; // Clear input field after sending the message byt setting to empty ''.
   };
 </script>
 
@@ -54,7 +58,7 @@ httpServer.listen(3000, () => {
 
 // WebSocket Server
 const wsServer = net.createServer();
-let clients = []; // Store connected clients
+let clients = []; // Store connected clients in an array
 
 wsServer.on('connection', (socket) => {
   console.log('Client connected');
@@ -74,7 +78,8 @@ wsServer.on('connection', (socket) => {
       socket.write(responseHeaders.join('\r\n'));
       clients.push(socket); // Add socket to client list
     } else {
-      // Assuming the message is masked and less than 126 bytes in length for easier implementation. MVP.
+      // The message is masked and less than 126 bytes in length for easier implementation.
+      // Websocket is limited to 126 bytes. Any messages longer than this must be split and sent as two packages.
       const isMasked = buffer[1] & 0x80;
       const payloadLength = buffer[1] & 0x7F;
       const maskStart = 2;
@@ -88,7 +93,7 @@ wsServer.on('connection', (socket) => {
         }
         console.log('Received:', decodedMessage);
 
-        // Broadcast message to all connected clients, except the sender
+        // forEach to broadcast message to all connected clients, except the sender
         clients.forEach(client => {
           if (client !== socket) { // Not send the message to itself
             client.write(encodeWebSocketMessage(decodedMessage));
@@ -108,7 +113,7 @@ wsServer.listen(3001, () => {
   console.log('WebSocket server listening on port 3001');
 });
 
-// Sending a Ping message from the server to all clients to keep the connection alive
+// Ping (message) from the server to all clients to keep the connection alive
 setInterval(() => {
   clients.forEach(client => {
     const pingMessage = JSON.stringify({ type: "ping", data: "PING" });
@@ -116,7 +121,7 @@ setInterval(() => {
   });
 }, 10000); // Send every 10 seconds
 
-// Broadcast the message to all connected clients except the sender
+// forEach to broadcast the message to all connected clients except the sender
 clients.forEach(client => {
   if (client !== socket) { // Don't send back to the sender
     const messageObject = { type: "broadcast", data: decodedMessage };
@@ -124,6 +129,12 @@ clients.forEach(client => {
   }
 });
 
+/**
+ * Encoding the message sent via websocket.
+ * Allocating buffer, setting first and second byte, then the message.
+ * @param message
+ * @returns {Buffer}
+ */
 function encodeWebSocketMessage(message) {
   // Encode text messages into WebSocket frames
   const length = Buffer.byteLength(message);
